@@ -23,6 +23,7 @@ func main() {
 	mux.HandleFunc("POST /api/validate_chirp", handlerValidateChirp)
 	// ADMIN
 	mux.Handle("POST /admin/reset", apiCfg.handlerResetMetrics())
+	mux.Handle("GET /admin/metrics", apiCfg.handlerMetrics())
 
 	// File Server
 	mux.Handle(
@@ -34,9 +35,6 @@ func main() {
 			),
 		),
 	)
-
-	// ADMIN
-	mux.Handle("GET /admin/metrics", apiCfg.handlerMetrics())
 
 	server := http.Server{
 		Addr:    ":" + port,
