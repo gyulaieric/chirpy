@@ -40,6 +40,28 @@ func (cfg *apiConfig) handlerGetChirps() http.Handler {
 	})
 }
 
+func (cfg *apiConfig) handlerGetChirp() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		chirpId, err := uuid.Parse(r.PathValue("chirpID"))
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Couldn't parse UUID from path parameter", err)
+			return
+		}
+		dbChirp, err := cfg.db.GetChirp(r.Context(), chirpId)
+		if err != nil {
+			respondWithError(w, http.StatusNotFound, "Chirp Not Found", err)
+			return
+		}
+		respondWithJSON(w, http.StatusOK, Chirp{
+			Id:        dbChirp.ID,
+			CreatedAt: dbChirp.CreatedAt,
+			UpdatedAt: dbChirp.UpdatedAt,
+			Body:      dbChirp.Body,
+			UserID:    dbChirp.UserID,
+		})
+	})
+}
+
 func (cfg *apiConfig) handlerCreateChirp() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		const maxChirpLength = 140
