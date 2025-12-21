@@ -1,0 +1,98 @@
+package main
+
+import (
+	"encoding/json"
+	"net/http"
+	"slices"
+	"strings"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/gyulaieric/chirpy/internal/database"
+)
+
+type Chirp struct {
+	Id        uuid.UUID `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Body      string    `json:"body"`
+	UserID    uuid.UUID `json:"user_id"`
+}
+
+func (cfg *apiConfig) handlerGetChirps() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		dbChirps, err := cfg.db.GetChirps(r.Context())
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Couldn't fetch chirps from database", err)
+			return
+		}
+		chirps := []Chirp{}
+		for _, dbChirp := range dbChirps {
+			chirps = append(chirps, Chirp{
+				Id:        dbChirp.ID,
+				CreatedAt: dbChirp.CreatedAt,
+				UpdatedAt: dbChirp.UpdatedAt,
+				Body:      dbChirp.Body,
+				UserID:    dbChirp.UserID,
+			})
+		}
+		respondWithJSON(w, http.StatusOK, chirps)
+	})
+}
+
+func (cfg *apiConfig) handlerCreateChirp() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		const maxChirpLength = 140
+
+		type parameters struct {
+			Body   string    `json:"body"`
+			UserId uuid.UUID `json:"user_id"`
+		}
+
+		decoder := json.NewDecoder(r.Body)
+		params := parameters{}
+		err := decoder.Decode(&params)
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Couldn't decode parameters", err)
+			return
+		}
+
+		if len(params.Body) > maxChirpLength {
+			respondWithError(w, http.StatusBadRequest, "Chirp is too long", nil)
+			return
+		}
+		chirp, err := cfg.db.CreateChirp(
+			r.Context(),
+			database.CreateChirpParams{
+				Body:   replaceProfanity(params.Body),
+				UserID: params.UserId,
+			},
+		)
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Couldn't create chirp", err)
+			return
+		}
+		respondWithJSON(w, http.StatusCreated, Chirp{
+			Id:        chirp.ID,
+			CreatedAt: chirp.CreatedAt,
+			UpdatedAt: chirp.UpdatedAt,
+			Body:      chirp.Body,
+			UserID:    chirp.UserID,
+		})
+	})
+}
+
+func replaceProfanity(chirp string) string {
+	badWords := []string{
+		"kerfuffle",
+		"sharbert",
+		"fornax",
+	}
+	words := strings.Fields(chirp)
+	for i, word := range words {
+		if slices.Contains(badWords, strings.ToLower(word)) {
+			words[i] = "****"
+		}
+	}
+	return strings.Join(words, " ")
+}
