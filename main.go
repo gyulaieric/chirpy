@@ -29,9 +29,7 @@ func (cfg *apiConfig) handlerMetrics() http.Handler {
 func (cfg *apiConfig) handlerResetMetrics() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cfg.fileserverHits.Store(0)
-		r.Header.Add("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("Metrics have been reset successfully"))
 	})
 }
 
@@ -42,6 +40,13 @@ func main() {
 	apiCfg := apiConfig{}
 
 	mux := http.NewServeMux()
+
+	// API
+	mux.HandleFunc("GET /api/healthz", handlerHealthz)
+	mux.Handle("GET /api/metrics", apiCfg.handlerMetrics())
+	mux.Handle("POST /api/reset", apiCfg.handlerResetMetrics())
+
+	// File Server
 	mux.Handle(
 		"/app/",
 		apiCfg.middlewareMetricsInc(
@@ -51,9 +56,6 @@ func main() {
 			),
 		),
 	)
-	mux.HandleFunc("GET /healthz", handlerHealthz)
-	mux.Handle("GET /metrics", apiCfg.handlerMetrics())
-	mux.Handle("POST /reset", apiCfg.handlerResetMetrics())
 
 	server := http.Server{
 		Addr:    ":" + port,
