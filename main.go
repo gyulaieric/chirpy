@@ -14,7 +14,6 @@ type apiConfig struct {
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cfg.fileserverHits.Add(1)
-		log.Printf("%s %s", r.Method, r.URL.Path)
 		next.ServeHTTP(w, r)
 	})
 }
@@ -52,9 +51,9 @@ func main() {
 			),
 		),
 	)
-	mux.HandleFunc("/healthz", handlerHealthz)
-	mux.Handle("/metrics", apiCfg.handlerMetrics())
-	mux.Handle("/reset", apiCfg.handlerResetMetrics())
+	mux.HandleFunc("GET /healthz", handlerHealthz)
+	mux.Handle("GET /metrics", apiCfg.handlerMetrics())
+	mux.Handle("POST /reset", apiCfg.handlerResetMetrics())
 
 	server := http.Server{
 		Addr:    ":" + port,
