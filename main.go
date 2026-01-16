@@ -15,6 +15,7 @@ import (
 type apiConfig struct {
 	fileserverHits atomic.Int32
 	db             *database.Queries
+	jwtSecret      string
 	platform       string
 }
 
@@ -25,13 +26,27 @@ func main() {
 	}
 
 	dbURL := os.Getenv("DB_URL")
+	if dbURL == "" {
+		log.Fatal("DB_URL must be set")
+	}
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
 		log.Printf(`Couldn't connect to database at "%s": %v`, dbURL, err)
 	}
+
+	platform := os.Getenv("PLATFORM")
+	if platform == "" {
+		log.Fatal("PLATFORM must be set")
+	}
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		log.Fatal("JWT_SECRET environment variable is not set")
+	}
+
 	apiCfg := apiConfig{
-		db:       database.New(db),
-		platform: os.Getenv("PLATFORM"),
+		db:        database.New(db),
+		jwtSecret: jwtSecret,
+		platform:  platform,
 	}
 
 	port := "8080"
@@ -43,6 +58,8 @@ func main() {
 	mux.HandleFunc("GET /api/healthz", handlerReadiness)
 	mux.Handle("POST /api/users", apiCfg.handlerRegister())
 	mux.Handle("POST /api/login", apiCfg.handlerLogin())
+	mux.Handle("POST /api/refresh", apiCfg.handlerRefresh())
+	mux.Handle("POST /api/revoke", apiCfg.handlerRevoke())
 	mux.Handle("GET /api/chirps", apiCfg.handlerGetChirps())
 	mux.Handle("GET /api/chirps/{chirpID}", apiCfg.handlerGetChirp())
 	mux.Handle("POST /api/chirps", apiCfg.handlerCreateChirp())

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gyulaieric/chirpy/internal/auth"
 	"github.com/gyulaieric/chirpy/internal/database"
 )
 
@@ -64,16 +65,26 @@ func (cfg *apiConfig) handlerGetChirp() http.Handler {
 
 func (cfg *apiConfig) handlerCreateChirp() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		token, err := auth.GetBearerToken(r.Header)
+		if err != nil {
+			respondWithError(w, http.StatusUnauthorized, "Couldn't get JWT from request headers", err)
+			return
+		}
+		userID, err := auth.ValidateJWT(token, cfg.jwtSecret)
+		if err != nil {
+			respondWithError(w, http.StatusUnauthorized, "Invalid JWT", err)
+			return
+		}
+
 		const maxChirpLength = 140
 
 		type parameters struct {
-			Body   string    `json:"body"`
-			UserId uuid.UUID `json:"user_id"`
+			Body string `json:"body"`
 		}
 
 		decoder := json.NewDecoder(r.Body)
 		params := parameters{}
-		err := decoder.Decode(&params)
+		err = decoder.Decode(&params)
 		if err != nil {
 			respondWithError(w, http.StatusInternalServerError, "Couldn't decode parameters", err)
 			return
@@ -87,7 +98,7 @@ func (cfg *apiConfig) handlerCreateChirp() http.Handler {
 			r.Context(),
 			database.CreateChirpParams{
 				Body:   replaceProfanity(params.Body),
-				UserID: params.UserId,
+				UserID: userID,
 			},
 		)
 		if err != nil {

@@ -11,10 +11,12 @@ import (
 )
 
 type User struct {
-	Id        uuid.UUID `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Email     string    `json:"email"`
+	Id           uuid.UUID `json:"id"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+	Email        string    `json:"email"`
+	Token        string    `json:"token"`
+	RefreshToken string    `json:"refresh_token"`
 }
 
 func (cfg *apiConfig) handlerRegister() http.Handler {
@@ -84,11 +86,72 @@ func (cfg *apiConfig) handlerLogin() http.Handler {
 			return
 		}
 
+		token, err := auth.MakeJWT(dbUser.ID, cfg.jwtSecret, time.Hour*time.Duration(1))
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Couldn't generate JWT", err)
+			return
+		}
+
+		refreshToken := auth.MakeRefreshToken()
+		if _, err = cfg.db.CreateRefreshToken(r.Context(), database.CreateRefreshTokenParams{
+			Token:     refreshToken,
+			UserID:    dbUser.ID,
+			ExpiresAt: time.Now().UTC().Add(time.Hour * time.Duration(1440)),
+		}); err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Couldn't generate Refresh Token", err)
+			return
+		}
+
 		respondWithJSON(w, http.StatusOK, User{
-			Id:        dbUser.ID,
-			CreatedAt: dbUser.CreatedAt,
-			UpdatedAt: dbUser.UpdatedAt,
-			Email:     dbUser.Email,
+			Id:           dbUser.ID,
+			CreatedAt:    dbUser.CreatedAt,
+			UpdatedAt:    dbUser.UpdatedAt,
+			Email:        dbUser.Email,
+			Token:        token,
+			RefreshToken: refreshToken,
 		})
+	})
+}
+
+func (cfg *apiConfig) handlerRefresh() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		token, err := auth.GetBearerToken(r.Header)
+		if err != nil {
+			respondWithError(w, http.StatusUnauthorized, "Couldn't get Refresh Token from request headers", err)
+			return
+		}
+		dbUser, err := cfg.db.GetUserFromRefreshToken(r.Context(), token)
+		if err != nil {
+			respondWithError(w, http.StatusUnauthorized, "Token doesn't exist or has expired", err)
+			return
+		}
+		type payload struct {
+			Token string `json:"token"`
+		}
+
+		jwt, err := auth.MakeJWT(dbUser.ID, cfg.jwtSecret, time.Hour*time.Duration(1))
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Couldn't generate JWT", err)
+			return
+		}
+
+		respondWithJSON(w, http.StatusOK, payload{
+			Token: jwt,
+		})
+	})
+}
+
+func (cfg *apiConfig) handlerRevoke() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		token, err := auth.GetBearerToken(r.Header)
+		if err != nil {
+			respondWithError(w, http.StatusUnauthorized, "Couldn't get Refresh Token from request headers", err)
+			return
+		}
+		if err := cfg.db.RevokeRefreshToken(r.Context(), token); err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Couldn't revoke token", err)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
 	})
 }
