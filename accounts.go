@@ -17,6 +17,7 @@ type User struct {
 	Email        string    `json:"email"`
 	Token        string    `json:"token"`
 	RefreshToken string    `json:"refresh_token"`
+	IsChirpyRed  bool      `json:"is_chirpy_red"`
 }
 
 func (cfg *apiConfig) handlerRegister() http.Handler {
@@ -109,6 +110,7 @@ func (cfg *apiConfig) handlerLogin() http.Handler {
 			Email:        dbUser.Email,
 			Token:        token,
 			RefreshToken: refreshToken,
+			IsChirpyRed:  dbUser.IsChirpyRed,
 		})
 	})
 }
@@ -197,10 +199,11 @@ func (cfg *apiConfig) handlerUpdateUsers() http.Handler {
 			return
 		}
 		respondWithJSON(w, http.StatusOK, User{
-			Id:        dbUser.ID,
-			CreatedAt: dbUser.CreatedAt,
-			UpdatedAt: dbUser.UpdatedAt,
-			Email:     dbUser.Email,
+			Id:          dbUser.ID,
+			CreatedAt:   dbUser.CreatedAt,
+			UpdatedAt:   dbUser.UpdatedAt,
+			Email:       dbUser.Email,
+			IsChirpyRed: dbUser.IsChirpyRed,
 		})
 	})
 }

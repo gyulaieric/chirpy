@@ -17,6 +17,7 @@ type apiConfig struct {
 	db             *database.Queries
 	jwtSecret      string
 	platform       string
+	polkaKey       string
 }
 
 func main() {
@@ -38,15 +39,22 @@ func main() {
 	if platform == "" {
 		log.Fatal("PLATFORM must be set")
 	}
+
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
 		log.Fatal("JWT_SECRET environment variable is not set")
+	}
+
+	polkaKey := os.Getenv("POLKA_KEY")
+	if polkaKey == "" {
+		log.Fatal("POLKA_KEY environment variable is not set")
 	}
 
 	apiCfg := apiConfig{
 		db:        database.New(db),
 		jwtSecret: jwtSecret,
 		platform:  platform,
+		polkaKey:  polkaKey,
 	}
 
 	port := "8080"
@@ -69,6 +77,8 @@ func main() {
 	mux.Handle("GET /api/chirps/{chirpID}", apiCfg.handlerGetChirp())
 	mux.Handle("POST /api/chirps", apiCfg.handlerCreateChirp())
 	mux.Handle("DELETE /api/chirps/{chirpID}", apiCfg.handlerDeleteChirp())
+
+	mux.Handle("POST /api/polka/webhooks", apiCfg.handlerPolkaWebhooks())
 
 	// ADMIN
 	mux.Handle("POST /admin/reset", apiCfg.handlerReset())

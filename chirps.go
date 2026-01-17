@@ -144,15 +144,15 @@ func (cfg *apiConfig) handlerDeleteChirp() http.Handler {
 			return
 		}
 
-		dbChirp, err := cfg.db.GetChirp(r.Context(), chirpId)
-		if err != nil {
-			respondWithError(w, http.StatusNotFound, "Chirp not found", err)
-			return
-		}
-
 		userID, err := auth.ValidateJWT(token, cfg.jwtSecret)
 		if err != nil {
 			respondWithError(w, http.StatusUnauthorized, "Invalid access token", err)
+			return
+		}
+
+		dbChirp, err := cfg.db.GetChirp(r.Context(), chirpId)
+		if err != nil {
+			respondWithError(w, http.StatusNotFound, "Chirp not found", err)
 			return
 		}
 
