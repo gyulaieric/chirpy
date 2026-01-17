@@ -155,3 +155,52 @@ func (cfg *apiConfig) handlerRevoke() http.Handler {
 		w.WriteHeader(http.StatusNoContent)
 	})
 }
+
+func (cfg *apiConfig) handlerUpdateUsers() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		token, err := auth.GetBearerToken(r.Header)
+		if err != nil {
+			respondWithError(w, http.StatusUnauthorized, "Couldn't get Access Token from request headers", err)
+			return
+		}
+		userID, err := auth.ValidateJWT(token, cfg.jwtSecret)
+		if err != nil {
+			respondWithError(w, http.StatusUnauthorized, "Invalid access token", err)
+			return
+		}
+
+		type parameters struct {
+			Email    string `json:"email"`
+			Password string `json:"password"`
+		}
+
+		decoder := json.NewDecoder(r.Body)
+		params := parameters{}
+		err = decoder.Decode(&params)
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Couldn't decode parameters", err)
+			return
+		}
+
+		hashedPassword, err := auth.HashPassword(params.Password)
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Couldn't hash password", err)
+			return
+		}
+		dbUser, err := cfg.db.UpdateUser(r.Context(), database.UpdateUserParams{
+			Email:          params.Email,
+			HashedPassword: hashedPassword,
+			ID:             userID,
+		})
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Couldn't update user", err)
+			return
+		}
+		respondWithJSON(w, http.StatusOK, User{
+			Id:        dbUser.ID,
+			CreatedAt: dbUser.CreatedAt,
+			UpdatedAt: dbUser.UpdatedAt,
+			Email:     dbUser.Email,
+		})
+	})
+}
