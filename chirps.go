@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"slices"
+	"sort"
 	"strings"
 	"time"
 
@@ -22,13 +23,38 @@ type Chirp struct {
 
 func (cfg *apiConfig) handlerGetChirps() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		dbChirps, err := cfg.db.GetChirps(r.Context())
-		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Couldn't fetch chirps from database", err)
-			return
+		authorId := r.URL.Query().Get("author_id")
+		chirpArray := []database.Chirp{}
+		if authorId == "" {
+			dbChirps, err := cfg.db.GetChirps(r.Context())
+			if err != nil {
+				respondWithError(w, http.StatusInternalServerError, "Couldn't fetch chirps from database", err)
+				return
+			}
+			chirpArray = append(chirpArray, dbChirps...)
+		} else {
+			userID, err := uuid.Parse(authorId)
+			if err != nil {
+				respondWithError(w, http.StatusInternalServerError, "Invalid user id", err)
+			}
+			dbChirps, err := cfg.db.GetChirpsByUserId(r.Context(), userID)
+			if err != nil {
+				respondWithError(w, http.StatusInternalServerError, "Couldn't fetch chirps from database", err)
+				return
+			}
+			chirpArray = append(chirpArray, dbChirps...)
+		}
+		sortParam := r.URL.Query().Get("sort")
+		switch sortParam {
+		case "asc":
+			sort.Slice(chirpArray, func(i, j int) bool { return chirpArray[i].CreatedAt.Before(chirpArray[j].CreatedAt) })
+		case "desc":
+			sort.Slice(chirpArray, func(i, j int) bool { return chirpArray[i].CreatedAt.After(chirpArray[j].CreatedAt) })
+		default:
+			break
 		}
 		chirps := []Chirp{}
-		for _, dbChirp := range dbChirps {
+		for _, dbChirp := range chirpArray {
 			chirps = append(chirps, Chirp{
 				Id:        dbChirp.ID,
 				CreatedAt: dbChirp.CreatedAt,
