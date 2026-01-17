@@ -41,4 +41,4 @@ go build -o chirpy && ./chirpy
 
 # Usage
 
-The server runs on http://localhost:8080 by default. Click [here](/docs/endpoints) for documentation on the available endpoints.
+The server runs on http://localhost:8080 by default. Click [here](/docs/endpoints.md) for documentation on the available endpoints.
